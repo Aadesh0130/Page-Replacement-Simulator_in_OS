@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page Replacement Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --surface: #0d1117;
+    --surface2: #141b24;
+    --surface3: #1c2736;
+    --border: #1f2d3d;
+    --accent: #00d9ff;
+    --accent2: #ff6b35;
+    --accent3: #7fff6b;
+    --accent4: #ffcc00;
+    --accent5: #c084fc;
+    --text: #e2eaf5;
+    --muted: #5a7080;
+    --danger: #ff4d6d;
+    --hit: #7fff6b;
+    --miss: #ff4d6d;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated bg grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,217,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,217,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* HEADER */
+  header {
+    padding: 28px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent), #0066ff);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(0,217,255,0.3);
+  }
+
+  .logo-text { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* PANEL */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* CONTROLS */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto auto;
+    gap: 16px;
+    align-items: end;
+  }
+
+  @media (max-width: 768px) {
+    .controls-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .field label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .field input, .field select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    padding: 10px 14px;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,217,255,0.1);
+  }
+
+  .field input::placeholder { color: var(--muted); }
+
+  select option { background: var(--surface2); }
+
+  /* ALGO TOGGLES */
+  .algo-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .algo-toggle {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .algo-toggle .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .algo-toggle[data-algo="FIFO"] .dot { background: var(--accent); }
+  .algo-toggle[data-algo="LRU"] .dot { background: var(--accent2); }
+  .algo-toggle[data-algo="LFU"] .dot { background: var(--accent3); }
+  .algo-toggle[data-algo="OPT"] .dot { background: var(--accent4); }
+
+  .algo-toggle.active { border-color: currentColor; }
+  .algo-toggle[data-algo="FIFO"].active { color: var(--accent); border-color: var(--accent); background: rgba(0,217,255,0.07); }
+  .algo-toggle[data-algo="LRU"].active { color: var(--accent2); border-color: var(--accent2); background: rgba(255,107,53,0.07); }
+  .algo-toggle[data-algo="LFU"].active { color: var(--accent3); border-color: var(--accent3); background: rgba(127,255,107,0.07); }
+  .algo-toggle[data-algo="OPT"].active { color: var(--accent4); border-color: var(--accent4); background: rgba(255,204,0,0.07); }
+
+  /* BUTTONS */
+  .btn {
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,217,255,0.25);
+  }
+  .btn-primary:hover { box-shadow: 0 0 30px rgba(0,217,255,0.45); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+  .btn-step {
+    background: var(--surface3);
+    color: var(--accent4);
+    border: 1px solid rgba(255,204,0,0.2);
+    font-size: 0.78rem;
+    padding: 8px 16px;
+  }
+  .btn-step:hover { border-color: var(--accent4); background: rgba(255,204,0,0.06); }
+  .btn-step:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+  }
+
+  /* STATS CARDS */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 500px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .stat-card[data-algo="FIFO"]::before { background: var(--accent); }
+  .stat-card[data-algo="LRU"]::before { background: var(--accent2); }
+  .stat-card[data-algo="LFU"]::before { background: var(--accent3); }
+  .stat-card[data-algo="OPT"]::before { background: var(--accent4); }
+
+  .stat-algo-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .stat-card[data-algo="FIFO"] .stat-algo-name { color: var(--accent); }
+  .stat-card[data-algo="LRU"] .stat-algo-name { color: var(--accent2); }
+  .stat-card[data-algo="LFU"] .stat-algo-name { color: var(--accent3); }
+  .stat-card[data-algo="OPT"] .stat-algo-name { color: var(--accent4); }
+
+  .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .stat-label { font-size: 0.72rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .stat-value { font-size: 0.82rem; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+  .stat-big {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-card[data-algo="FIFO"] .stat-big { color: var(--accent); }
+  .stat-card[data-algo="LRU"] .stat-big { color: var(--accent2); }
+  .stat-card[data-algo="LFU"] .stat-big { color: var(--accent3); }
+  .stat-card[data-algo="OPT"] .stat-big { color: var(--accent4); }
+
+  .bar-wrap { background: var(--surface2); border-radius: 4px; height: 5px; margin-top: 8px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .stat-card[data-algo="FIFO"] .bar-fill { background: var(--accent); }
+  .stat-card[data-algo="LRU"] .bar-fill { background: var(--accent2); }
+  .stat-card[data-algo="LFU"] .bar-fill { background: var(--accent3); }
+  .stat-card[data-algo="OPT"] .bar-fill { background: var(--accent4); }
+
+  /* VISUALIZATION */
+  .viz-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 900px) { .viz-grid { grid-template-columns: repeat(2,1fr); } }
+
+  .algo-viz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .viz-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .viz-algo-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .algo-viz[data-algo="FIFO"] .viz-algo-name { color: var(--accent); }
+  .algo-viz[data-algo="LRU"] .viz-algo-name { color: var(--accent2); }
+  .algo-viz[data-algo="LFU"] .viz-algo-name { color: var(--accent3); }
+  .algo-viz[data-algo="OPT"] .viz-algo-name { color: var(--accent4); }
+
+  .viz-step-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .frames-area {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 80px;
+  }
+
+  .frame-slot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .frame-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    width: 14px;
+    text-align: right;
+  }
+
+  .frame-cell {
+    flex: 1;
+    height: 34px;
+    border-radius: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .frame-cell.empty { color: var(--muted); font-size: 0.7rem; }
+  .frame-cell.hit { background: rgba(127,255,107,0.12); border-color: var(--hit); color: var(--hit); }
+  .frame-cell.miss { background: rgba(255,77,109,0.12); border-color: var(--miss); color: var(--miss); }
+  .frame-cell.evicted { background: rgba(255,107,53,0.12); border-color: var(--accent2); }
+
+  .frame-cell.flash {
+    animation: cellFlash 0.4s ease;
+  }
+
+  @keyframes cellFlash {
+    0% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+
+  /* PAGE SEQUENCE */
+  .seq-scroll {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .seq-track {
+    display: flex;
+    gap: 6px;
+    padding: 4px 2px;
+    min-width: max-content;
+  }
+
+  .seq-page {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .seq-page.current {
+    background: rgba(0,217,255,0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(0,217,255,0.2);
+  }
+
+  .seq-page.hit-page::after {
+    content: '✓';
+    position: absolute;
+    bottom: -2px; right: 1px;
+    font-size: 0.5rem;
+    color: var(--hit);
+  }
+
+  .seq-page.miss-page::after {
+    content: '✗';
+    position: absolute;
+    bottom: -2px; right: 1px;
+    font-size: 0.5rem;
+    color: var(--miss);
+  }
+
+  .seq-page.done { opacity: 0.45; }
+
+  /* COMPARISON CHART */
+  .chart-wrap {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    padding: 16px 8px 0;
+    height: 200px;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .chart-bar-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    justify-content: flex-end;
+    height: 100%;
+  }
+
+  .chart-bar {
+    width: 70%;
+    border-radius: 6px 6px 0 0;
+    transition: height 0.7s cubic-bezier(.4,0,.2,1);
+    position: relative;
+    min-height: 4px;
+  }
+
+  .chart-bar[data-algo="FIFO"] { background: linear-gradient(to top, rgba(0,217,255,0.4), var(--accent)); }
+  .chart-bar[data-algo="LRU"] { background: linear-gradient(to top, rgba(255,107,53,0.4), var(--accent2)); }
+  .chart-bar[data-algo="LFU"] { background: linear-gradient(to top, rgba(127,255,107,0.4), var(--accent3)); }
+  .chart-bar[data-algo="OPT"] { background: linear-gradient(to top, rgba(255,204,0,0.4), var(--accent4)); }
+
+  .chart-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .chart-lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+    padding-bottom: 4px;
+  }
+
+  /* STEP LOG */
+  .log-wrap {
+    max-height: 160px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+  }
+
+  .log-wrap::-webkit-scrollbar { width: 4px; }
+  .log-wrap::-webkit-scrollbar-track { background: transparent; }
+  .log-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-entry {
+    display: flex;
+    gap: 12px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    align-items: center;
+  }
+
+  .log-step { color: var(--muted); width: 28px; text-align: right; flex-shrink: 0; }
+  .log-page { width: 20px; text-align: center; font-weight: 700; flex-shrink: 0; }
+  .log-result { width: 36px; flex-shrink: 0; }
+  .log-result.hit { color: var(--hit); }
+  .log-result.miss { color: var(--miss); }
+  .log-frames { color: var(--muted); flex: 1; }
+  .log-algo { width: 32px; flex-shrink: 0; }
+  .log-algo[data-algo="FIFO"] { color: var(--accent); }
+  .log-algo[data-algo="LRU"] { color: var(--accent2); }
+  .log-algo[data-algo="LFU"] { color: var(--accent3); }
+  .log-algo[data-algo="OPT"] { color: var(--accent4); }
+
+  /* COMPARISON TABLE */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+  }
+
+  .compare-table th {
+    text-align: left;
+    padding: 8px 14px;
+    color: var(--muted);
+    font-size: 0.65rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compare-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge-best {
+    background: rgba(127,255,107,0.15);
+    color: var(--accent3);
+    border: 1px solid rgba(127,255,107,0.3);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.6rem;
+    margin-left: 8px;
+  }
+
+  /* BOTTOM LAYOUT */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 800px) { .bottom-grid { grid-template-columns: 1fr; } }
+
+  /* TOOLTIP */
+  .tooltip-algo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: help;
+  }
+
+  .tooltip-algo::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.7rem;
+    padding: 8px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .tooltip-algo:hover::after { opacity: 1; }
+
+  /* SPEED CONTROL */
+  .speed-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .speed-wrap input[type=range] {
+    -webkit-appearance: none;
+    width: 90px; height: 4px;
+    background: var(--surface3);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .speed-wrap input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent4);
+    cursor: pointer;
+  }
+
+  .speed-lbl { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+
+  /* FLASH NOTIFICATION */
+  .notif {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    z-index: 100;
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    max-width: 280px;
+  }
+
+  .notif.show { transform: translateY(0); opacity: 1; }
+  .notif.notif-success { border-color: var(--accent3); color: var(--accent3); }
+  .notif.notif-info { border-color: var(--accent); color: var(--accent); }
+
+  /* INFO SECTION */
+  .info-cards {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 900px) { .info-cards { grid-template-columns: repeat(2,1fr); } }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+
+  .info-card-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .info-card[data-algo="FIFO"] .info-card-title { color: var(--accent); }
+  .info-card[data-algo="LRU"] .info-card-title { color: var(--accent2); }
+  .info-card[data-algo="LFU"] .info-card-title { color: var(--accent3); }
+  .info-card[data-algo="OPT"] .info-card-title { color: var(--accent4); }
+
+  .info-card p { font-size: 0.73rem; color: var(--muted); line-height: 1.6; }
+
+  /* RUNNING STATE */
+  .running-pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent3);
+    animation: pulse 1s infinite;
+    display: none;
+  }
+
+  .is-running .running-pulse { display: block; }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* WINNER BADGE */
+  .winner-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(127,255,107,0.05);
+    border: 1px solid rgba(127,255,107,0.2);
+    border-radius: 10px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    display: none;
+  }
+
+  .winner-row.show { display: flex; }
+  .winner-label { color: var(--muted); }
+  .winner-name { color: var(--accent3); font-weight: 700; }
+
+  /* EMPTY STATE */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .empty-icon { font-size: 2rem; opacity: 0.4; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 0;
+    margin-top: 8px;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <div class="logo-text">PAGE<span>FAULT</span> SIMULATOR</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="running-pulse" id="runningPulse"></div>
+        <span class="badge">OS · MEMORY MANAGEMENT</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- INFO CARDS -->
+  <div class="info-cards">
+    <div class="info-card" data-algo="FIFO">
+      <div class="info-card-title">FIFO — First In First Out</div>
+      <p>Evicts the oldest page in memory. Simple but can suffer Bélády's anomaly — more frames may cause more faults.</p>
+    </div>
+    <div class="info-card" data-algo="LRU">
+      <div class="info-card-title">LRU — Least Recently Used</div>
+      <p>Evicts the page unused for the longest time. Good performance in practice; exploits temporal locality.</p>
+    </div>
+    <div class="info-card" data-algo="LFU">
+      <div class="info-card-title">LFU — Least Frequently Used</div>
+      <p>Evicts the page with the lowest access count. Excellent for long-running workloads with stable hot pages.</p>
+    </div>
+    <div class="info-card" data-algo="OPT">
+      <div class="info-card-title">OPT — Optimal (Bélády's)</div>
+      <p>Evicts the page not needed for the longest future time. Theoretical best-case baseline; requires future knowledge.</p>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="panel">
+    <div class="panel-title">Configuration</div>
+    <div class="controls-grid">
+      <div class="field" style="grid-column: 1 / -1;">
+        <label>Page Reference String</label>
+        <input type="text" id="refString" placeholder="e.g. 7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1" value="7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1">
+      </div>
+      <div class="field">
+        <label>Number of Frames</label>
+        <input type="number" id="numFrames" value="3" min="1" max="10">
+      </div>
+      <div class="field">
+        <label>Algorithms</label>
+        <div class="algo-toggles" style="margin:0;">
+          <div class="algo-toggle active" data-algo="FIFO"><span class="dot"></span>FIFO</div>
+          <div class="algo-toggle active" data-algo="LRU"><span class="dot"></span>LRU</div>
+          <div class="algo-toggle active" data-algo="LFU"><span class="dot"></span>LFU</div>
+          <div class="algo-toggle active" data-algo="OPT"><span class="dot"></span>OPT</div>
+        </div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="btnRun">▶ Run All</button>
+      <button class="btn btn-step" id="btnStep" disabled>⏭ Step</button>
+      <button class="btn btn-step" id="btnAuto" disabled>⚙ Auto-Play</button>
+      <button class="btn btn-ghost" id="btnReset">↺ Reset</button>
+      <button class="btn btn-ghost" id="btnRandom">⚄ Random</button>
+      <div class="speed-wrap" style="margin-left:auto;">
+        <span class="speed-lbl">SPEED</span>
+        <input type="range" id="speedSlider" min="100" max="1500" value="600" step="100">
+        <span class="speed-lbl" id="speedVal">600ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEQUENCE TRACK -->
+  <div class="panel" id="seqPanel" style="display:none;">
+    <div class="panel-title">Page Reference Sequence</div>
+    <div class="seq-scroll">
+      <div class="seq-track" id="seqTrack"></div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-grid" id="statsGrid" style="display:none;">
+    <div class="stat-card" data-algo="FIFO">
+      <div class="stat-algo-name">FIFO</div>
+      <div class="stat-big" id="stat-faults-FIFO">—</div>
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:10px;">page faults</div>
+      <div class="stat-row"><span class="stat-label">Hit Ratio</span><span class="stat-value" id="stat-hit-FIFO">—</span></div>
+      <div class="stat-row"><span class="stat-label">Fault Rate</span><span class="stat-value" id="stat-rate-FIFO">—</span></div>
+      <div class="bar-wrap"><div class="bar-fill" id="bar-FIFO" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card" data-algo="LRU">
+      <div class="stat-algo-name">LRU</div>
+      <div class="stat-big" id="stat-faults-LRU">—</div>
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:10px;">page faults</div>
+      <div class="stat-row"><span class="stat-label">Hit Ratio</span><span class="stat-value" id="stat-hit-LRU">—</span></div>
+      <div class="stat-row"><span class="stat-label">Fault Rate</span><span class="stat-value" id="stat-rate-LRU">—</span></div>
+      <div class="bar-wrap"><div class="bar-fill" id="bar-LRU" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card" data-algo="LFU">
+      <div class="stat-algo-name">LFU</div>
+      <div class="stat-big" id="stat-faults-LFU">—</div>
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:10px;">page faults</div>
+      <div class="stat-row"><span class="stat-label">Hit Ratio</span><span class="stat-value" id="stat-hit-LFU">—</span></div>
+      <div class="stat-row"><span class="stat-label">Fault Rate</span><span class="stat-value" id="stat-rate-LFU">—</span></div>
+      <div class="bar-wrap"><div class="bar-fill" id="bar-LFU" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card" data-algo="OPT">
+      <div class="stat-algo-name">OPT</div>
+      <div class="stat-big" id="stat-faults-OPT">—</div>
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:10px;">page faults</div>
+      <div class="stat-row"><span class="stat-label">Hit Ratio</span><span class="stat-value" id="stat-hit-OPT">—</span></div>
+      <div class="stat-row"><span class="stat-label">Fault Rate</span><span class="stat-value" id="stat-rate-OPT">—</span></div>
+      <div class="bar-wrap"><div class="bar-fill" id="bar-OPT" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- FRAME VISUALIZATIONS -->
+  <div class="viz-grid" id="vizGrid" style="display:none;">
+    <div class="algo-viz" data-algo="FIFO">
+      <div class="viz-header">
+        <span class="viz-algo-name">FIFO</span>
+        <span class="viz-step-info" id="viz-info-FIFO">—</span>
+      </div>
+      <div class="frames-area" id="frames-FIFO"></div>
+    </div>
+    <div class="algo-viz" data-algo="LRU">
+      <div class="viz-header">
+        <span class="viz-algo-name">LRU</span>
+        <span class="viz-step-info" id="viz-info-LRU">—</span>
+      </div>
+      <div class="frames-area" id="frames-LRU"></div>
+    </div>
+    <div class="algo-viz" data-algo="LFU">
+      <div class="viz-header">
+        <span class="viz-algo-name">LFU</span>
+        <span class="viz-step-info" id="viz-info-LFU">—</span>
+      </div>
+      <div class="frames-area" id="frames-LFU"></div>
+    </div>
+    <div class="algo-viz" data-algo="OPT">
+      <div class="viz-header">
+        <span class="viz-algo-name">OPT</span>
+        <span class="viz-step-info" id="viz-info-OPT">—</span>
+      </div>
+      <div class="frames-area" id="frames-OPT"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM: CHART + TABLE -->
+  <div class="bottom-grid">
+    <div class="panel">
+      <div class="panel-title">Fault Count Comparison</div>
+      <canvas id="chartCanvas" width="500" height="220" style="width:100%;height:220px;display:block;"></canvas>
+      <div id="chartWrap" style="display:none;"></div>
+      <div class="winner-row" id="winnerRow">
+        <span class="winner-label">⭐ BEST ALGORITHM:</span>
+        <span class="winner-name" id="winnerName">—</span>
+        <span class="winner-label" id="winnerDetail"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Step Log</div>
+      <div class="log-wrap" id="logWrap">
+        <div class="empty-state"><div class="empty-icon">📋</div>Logs will appear here</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPARISON TABLE -->
+  <div class="panel" id="comparePanel" style="display:none;">
+    <div class="panel-title">Full Comparison</div>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Algorithm</th>
+          <th>Page Faults</th>
+          <th>Page Hits</th>
+          <th>Hit Ratio</th>
+          <th>Fault Rate</th>
+          <th>Efficiency</th>
+        </tr>
+      </thead>
+      <tbody id="compareBody"></tbody>
+    </table>
+  </div>
+
+  <footer>PAGE REPLACEMENT ALGORITHM SIMULATOR · OS CONCEPTS · BUILT WITH VANILLA JS</footer>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script>
+// =========================================================
+// ALGORITHMS
+// =========================================================
+
+function runFIFO(pages, nFrames) {
+  const frames = [];
+  const queue = [];
+  const history = [];
+  let faults = 0, hits = 0;
+
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    if (frames.includes(p)) {
+      hits++;
+      history.push({ page: p, result: 'HIT', frames: [...frames], evicted: null });
+    } else {
+      faults++;
+      let evicted = null;
+      if (frames.length < nFrames) {
+        frames.push(p);
+        queue.push(p);
+      } else {
+        evicted = queue.shift();
+        frames[frames.indexOf(evicted)] = p;
+        queue.push(p);
+      }
+      history.push({ page: p, result: 'MISS', frames: [...frames], evicted });
+    }
+  }
+  return { faults, hits, total: pages.length, history };
+}
+
+function runLRU(pages, nFrames) {
+  const frames = [];
+  const lastUsed = {};
+  const history = [];
+  let faults = 0, hits = 0;
+
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    if (frames.includes(p)) {
+      hits++;
+      lastUsed[p] = i;
+      history.push({ page: p, result: 'HIT', frames: [...frames], evicted: null });
+    } else {
+      faults++;
+      let evicted = null;
+      if (frames.length < nFrames) {
+        frames.push(p);
+      } else {
+        let lruPage = frames.reduce((a, b) => (lastUsed[a] || -1) < (lastUsed[b] || -1) ? a : b);
+        evicted = lruPage;
+        frames[frames.indexOf(lruPage)] = p;
+      }
+      lastUsed[p] = i;
+      history.push({ page: p, result: 'MISS', frames: [...frames], evicted });
+    }
+  }
+  return { faults, hits, total: pages.length, history };
+}
+
+function runLFU(pages, nFrames) {
+  const frames = [];
+  const freq = {};
+  const lastUsed = {};
+  const history = [];
+  let faults = 0, hits = 0;
+
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    if (frames.includes(p)) {
+      hits++;
+      freq[p] = (freq[p] || 0) + 1;
+      lastUsed[p] = i;
+      history.push({ page: p, result: 'HIT', frames: [...frames], evicted: null });
+    } else {
+      faults++;
+      let evicted = null;
+      if (frames.length < nFrames) {
+        frames.push(p);
+      } else {
+        let minFreq = Math.min(...frames.map(f => freq[f] || 0));
+        let candidates = frames.filter(f => (freq[f] || 0) === minFreq);
+        let lru = candidates.reduce((a, b) => (lastUsed[a] || -1) < (lastUsed[b] || -1) ? a : b);
+        evicted = lru;
+        frames[frames.indexOf(lru)] = p;
+      }
+      freq[p] = (freq[p] || 0) + 1;
+      lastUsed[p] = i;
+      history.push({ page: p, result: 'MISS', frames: [...frames], evicted });
+    }
+  }
+  return { faults, hits, total: pages.length, history };
+}
+
+function runOPT(pages, nFrames) {
+  const frames = [];
+  const history = [];
+  let faults = 0, hits = 0;
+
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    if (frames.includes(p)) {
+      hits++;
+      history.push({ page: p, result: 'HIT', frames: [...frames], evicted: null });
+    } else {
+      faults++;
+      let evicted = null;
+      if (frames.length < nFrames) {
+        frames.push(p);
+      } else {
+        const futureUse = frames.map(f => {
+          const idx = pages.indexOf(f, i + 1);
+          return idx === -1 ? Infinity : idx;
+        });
+        const maxIdx = futureUse.indexOf(Math.max(...futureUse));
+        evicted = frames[maxIdx];
+        frames[maxIdx] = p;
+      }
+      history.push({ page: p, result: 'MISS', frames: [...frames], evicted });
+    }
+  }
+  return { faults, hits, total: pages.length, history };
+}
+
+// =========================================================
+// STATE
+// =========================================================
+let simResults = {};
+let stepStates = {};
+let stepIndex = 0;
+let maxSteps = 0;
+let autoTimer = null;
+let pages = [];
+let nFrames = 3;
+const ALGOS = ['FIFO', 'LRU', 'LFU', 'OPT'];
+const algoColors = { FIFO: 'var(--accent)', LRU: 'var(--accent2)', LFU: 'var(--accent3)', OPT: 'var(--accent4)' };
+let activeAlgos = new Set(['FIFO','LRU','LFU','OPT']);
+
+// =========================================================
+// UI HELPERS
+// =========================================================
+function notify(msg, type = 'info') {
+  const el = document.getElementById('notif');
+  el.textContent = msg;
+  el.className = `notif show notif-${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function getPages() {
+  const raw = document.getElementById('refString').value.trim();
+  return raw.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+}
+
+function updateSeqTrack(step) {
+  const track = document.getElementById('seqTrack');
+  track.querySelectorAll('.seq-page').forEach((el, i) => {
+    el.className = 'seq-page';
+    if (i === step - 1) el.classList.add('current');
+    else if (i < step - 1) {
+      el.classList.add('done');
+      // Check if all algos hit or miss
+      let allHit = ALGOS.filter(a => activeAlgos.has(a)).every(a => simResults[a].history[i]?.result === 'HIT');
+      let allMiss = ALGOS.filter(a => activeAlgos.has(a)).every(a => simResults[a].history[i]?.result === 'MISS');
+      if (allHit) el.classList.add('hit-page');
+      else if (allMiss) el.classList.add('miss-page');
+    }
+  });
+  // Scroll to current
+  const cur = track.querySelector('.seq-page.current');
+  if (cur) cur.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+function renderFrames(algo, stepIdx) {
+  const area = document.getElementById(`frames-${algo}`);
+  const infoEl = document.getElementById(`viz-info-${algo}`);
+  if (!simResults[algo]) return;
+
+  const h = simResults[algo].history[stepIdx - 1];
+  if (!h) {
+    area.innerHTML = '';
+    for (let i = 0; i < nFrames; i++) {
+      area.innerHTML += `<div class="frame-slot"><span class="frame-label">${i}</span><div class="frame-cell empty">—</div></div>`;
+    }
+    infoEl.textContent = '—';
+    return;
+  }
+
+  const frames = h.frames;
+  infoEl.textContent = `pg:${h.page} → ${h.result}`;
+
+  let html = '';
+  for (let i = 0; i < nFrames; i++) {
+    const val = frames[i] !== undefined ? frames[i] : null;
+    const isHit = h.result === 'HIT' && val === h.page;
+    const isMiss = h.result === 'MISS' && val === h.page;
+    const isEmpty = val === null || val === undefined;
+    const cls = isHit ? 'hit' : isMiss ? 'miss flash' : '';
+    html += `<div class="frame-slot"><span class="frame-label">${i}</span><div class="frame-cell ${isEmpty ? 'empty' : cls}">${isEmpty ? '—' : val}</div></div>`;
+  }
+  area.innerHTML = html;
+}
+
+function updateStats(algo, step) {
+  if (!simResults[algo]) return;
+  const h = simResults[algo].history.slice(0, step);
+  const faults = h.filter(x => x.result === 'MISS').length;
+  const hits = h.filter(x => x.result === 'HIT').length;
+  const total = h.length;
+  document.getElementById(`stat-faults-${algo}`).textContent = faults;
+  document.getElementById(`stat-hit-${algo}`).textContent = total ? (hits/total*100).toFixed(1) + '%' : '—';
+  document.getElementById(`stat-rate-${algo}`).textContent = total ? (faults/total*100).toFixed(1) + '%' : '—';
+  const pct = total ? (hits / total) * 100 : 0;
+  document.getElementById(`bar-${algo}`).style.width = pct + '%';
+}
+
+function addLog(algo, step, page, result, frames) {
+  const wrap = document.getElementById('logWrap');
+  if (step === 1) {
+    const empty = wrap.querySelector('.empty-state');
+    if (empty) wrap.innerHTML = '';
+  }
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <span class="log-algo" data-algo="${algo}">${algo}</span>
+    <span class="log-step">${step}</span>
+    <span class="log-page">${page}</span>
+    <span class="log-result ${result.toLowerCase()}">${result}</span>
+    <span class="log-frames">[${frames.map(f => f !== undefined ? f : '—').join(', ')}]</span>
+  `;
+  wrap.appendChild(entry);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function renderChart() {
+  const algos = ALGOS.filter(a => activeAlgos.has(a) && simResults[a]);
+  if (!algos.length) return;
+
+  const canvas = document.getElementById('chartCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Resize canvas to actual pixel size
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width || 500;
+  canvas.height = 220;
+
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD_L = 40, PAD_R = 20, PAD_TOP = 20, PAD_BOT = 50;
+  const chartW = W - PAD_L - PAD_R;
+  const chartH = H - PAD_TOP - PAD_BOT;
+
+  const maxFaults = Math.max(...algos.map(a => simResults[a].faults));
+  const minFaults = Math.min(...algos.map(a => simResults[a].faults));
+
+  const COLORS = { FIFO: '#00d9ff', LRU: '#ff6b35', LFU: '#7fff6b', OPT: '#ffcc00' };
+
+  // Draw gridlines
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1;
+  const gridLines = 4;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = PAD_TOP + (chartH / gridLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y);
+    ctx.lineTo(PAD_L + chartW, y);
+    ctx.stroke();
+    // Y axis labels
+    const val = Math.round(maxFaults - (maxFaults / gridLines) * i);
+    ctx.fillStyle = 'rgba(90,112,128,0.8)';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(val >= 0 ? val : '', PAD_L - 6, y + 4);
+  }
+
+  // Draw Y axis line
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, PAD_TOP);
+  ctx.lineTo(PAD_L, PAD_TOP + chartH);
+  ctx.lineTo(PAD_L + chartW, PAD_TOP + chartH);
+  ctx.stroke();
+
+  // Draw bars
+  const barCount = algos.length;
+  const barW = Math.min(60, (chartW / barCount) * 0.55);
+  const gap = chartW / barCount;
+
+  algos.forEach((a, i) => {
+    const faults = simResults[a].faults;
+    const barH = maxFaults ? Math.max((faults / maxFaults) * chartH, 4) : 4;
+    const x = PAD_L + gap * i + (gap - barW) / 2;
+    const y = PAD_TOP + chartH - barH;
+    const color = COLORS[a];
+
+    // Glow shadow
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+
+    // Gradient fill
+    const grad = ctx.createLinearGradient(x, y, x, y + barH);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, color.replace(')', ', 0.3)').replace('rgb', 'rgba'));
+    ctx.fillStyle = grad;
+
+    // Rounded top
+    const r = 5;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + barW - r, y);
+    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
+    ctx.lineTo(x + barW, y + barH);
+    ctx.lineTo(x, y + barH);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // BEST badge highlight
+    if (faults === minFaults) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Fault count above bar
+    ctx.fillStyle = color;
+    ctx.font = 'bold 13px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(faults, x + barW / 2, y - 7);
+
+    // Algo label below
+    ctx.fillStyle = faults === minFaults ? color : 'rgba(90,112,128,1)';
+    ctx.font = (faults === minFaults ? 'bold ' : '') + '11px JetBrains Mono, monospace';
+    ctx.fillText(a, x + barW / 2, PAD_TOP + chartH + 18);
+
+    // BEST label
+    if (faults === minFaults) {
+      ctx.fillStyle = color;
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.fillText('★ BEST', x + barW / 2, PAD_TOP + chartH + 32);
+    }
+  });
+}
+
+function renderCompareTable() {
+  const algos = ALGOS.filter(a => activeAlgos.has(a) && simResults[a]);
+  if (!algos.length) return;
+  const minFaults = Math.min(...algos.map(a => simResults[a].faults));
+  const tbody = document.getElementById('compareBody');
+  tbody.innerHTML = algos.map(a => {
+    const r = simResults[a];
+    const hitR = (r.hits / r.total * 100).toFixed(1);
+    const faultR = (r.faults / r.total * 100).toFixed(1);
+    const eff = r.faults === minFaults ? '<span class="badge-best">BEST</span>' : '';
+    const c = a === 'FIFO'?'var(--accent)':a==='LRU'?'var(--accent2)':a==='LFU'?'var(--accent3)':'var(--accent4)';
+    return `<tr>
+      <td style="color:${c};font-weight:700;">${a}${eff}</td>
+      <td style="color:var(--miss)">${r.faults}</td>
+      <td style="color:var(--hit)">${r.hits}</td>
+      <td>${hitR}%</td>
+      <td>${faultR}%</td>
+      <td>
+        <div class="bar-wrap" style="width:100px">
+          <div class="bar-fill" data-algo="${a}" style="width:${hitR}%"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('comparePanel').style.display = 'block';
+
+  // Winner
+  const best = algos.reduce((a, b) => simResults[a].faults <= simResults[b].faults ? a : b);
+  const wr = document.getElementById('winnerRow');
+  document.getElementById('winnerName').textContent = best;
+  document.getElementById('winnerDetail').textContent = `${simResults[best].faults} faults · ${(simResults[best].hits/simResults[best].total*100).toFixed(1)}% hit ratio`;
+  wr.classList.add('show');
+}
+
+// =========================================================
+// MAIN SIMULATION
+// =========================================================
+function runAll() {
+  pages = getPages();
+  nFrames = parseInt(document.getElementById('numFrames').value);
+  if (!pages.length) { notify('Enter a valid page reference string', 'info'); return; }
+  if (nFrames < 1) { notify('Need at least 1 frame', 'info'); return; }
+
+  simResults = {};
+  stepIndex = 0;
+  stepStates = {};
+  stopAuto();
+
+  activeAlgos.forEach(algo => {
+    const fn = { FIFO: runFIFO, LRU: runLRU, LFU: runLFU, OPT: runOPT }[algo];
+    simResults[algo] = fn(pages, nFrames);
+  });
+
+  maxSteps = pages.length;
+
+  // Build sequence track
+  document.getElementById('seqPanel').style.display = 'block';
+  const track = document.getElementById('seqTrack');
+  track.innerHTML = pages.map((p, i) => `<div class="seq-page" data-i="${i}">${p}</div>`).join('');
+
+  // Show viz / stats
+  document.getElementById('statsGrid').style.display = 'grid';
+  document.getElementById('vizGrid').style.display = 'grid';
+
+  // Reset frames
+  ALGOS.forEach(algo => {
+    const area = document.getElementById(`frames-${algo}`);
+    area.innerHTML = '';
+    for (let i = 0; i < nFrames; i++) {
+      area.innerHTML += `<div class="frame-slot"><span class="frame-label">${i}</span><div class="frame-cell empty">—</div></div>`;
+    }
+    document.getElementById(`viz-info-${algo}`).textContent = '—';
+    document.getElementById(`stat-faults-${algo}`).textContent = '—';
+    document.getElementById(`stat-hit-${algo}`).textContent = '—';
+    document.getElementById(`stat-rate-${algo}`).textContent = '—';
+    document.getElementById(`bar-${algo}`).style.width = '0%';
+  });
+
+  document.getElementById('logWrap').innerHTML = '';
+  document.getElementById('comparePanel').style.display = 'none';
+  document.getElementById('winnerRow').classList.remove('show');
+
+  // Auto-populate all steps into log
+  ALGOS.filter(a => activeAlgos.has(a)).forEach(algo => {
+    simResults[algo].history.forEach((h, idx) => {
+      addLog(algo, idx + 1, h.page, h.result, h.frames);
+    });
+  });
+
+  // Auto-render final frame states for all algos
+  ALGOS.filter(a => activeAlgos.has(a)).forEach(algo => {
+    renderFrames(algo, maxSteps);
+    updateStats(algo, maxSteps);
+  });
+
+  // Mark all seq pages as done
+  stepIndex = maxSteps;
+  updateSeqTrack(maxSteps);
+
+  // Immediately show chart and comparison table
+  renderChart();
+  renderCompareTable();
+
+  document.getElementById('btnStep').disabled = true;
+  document.getElementById('btnAuto').disabled = true;
+  document.getElementById('btnAuto').textContent = '⚙ Auto-Play';
+
+  notify('Simulation complete!', 'success');
+}
+
+function doStep() {
+  if (stepIndex >= maxSteps) {
+    stopAuto();
+    renderChart();
+    renderCompareTable();
+    notify('Simulation complete!', 'success');
+    document.getElementById('btnStep').disabled = true;
+    document.getElementById('btnAuto').textContent = '⚙ Auto-Play';
+    return;
+  }
+
+  stepIndex++;
+
+  ALGOS.filter(a => activeAlgos.has(a)).forEach(algo => {
+    renderFrames(algo, stepIndex);
+    updateStats(algo, stepIndex);
+    const h = simResults[algo].history[stepIndex - 1];
+    if (h) addLog(algo, stepIndex, h.page, h.result, h.frames);
+  });
+
+  updateSeqTrack(stepIndex);
+}
+
+let autoRunning = false;
+
+function startAuto() {
+  if (autoRunning) { stopAuto(); return; }
+  autoRunning = true;
+  document.getElementById('btnAuto').textContent = '⏸ Pause';
+  document.getElementById('runningPulse').parentElement.classList.add('is-running');
+  const speed = parseInt(document.getElementById('speedSlider').value);
+
+  function loop() {
+    if (!autoRunning || stepIndex >= maxSteps) { stopAuto(); return; }
+    doStep();
+    autoTimer = setTimeout(loop, speed);
+  }
+  loop();
+}
+
+function stopAuto() {
+  autoRunning = false;
+  clearTimeout(autoTimer);
+  document.getElementById('btnAuto').textContent = '⚙ Auto-Play';
+  document.getElementById('runningPulse')?.parentElement.classList.remove('is-running');
+}
+
+function reset() {
+  stopAuto();
+  stepIndex = 0;
+  simResults = {};
+  pages = [];
+  document.getElementById('seqPanel').style.display = 'none';
+  document.getElementById('statsGrid').style.display = 'none';
+  document.getElementById('vizGrid').style.display = 'none';
+  document.getElementById('comparePanel').style.display = 'none';
+  document.getElementById('winnerRow').classList.remove('show');
+  document.getElementById('btnStep').disabled = true;
+  document.getElementById('btnAuto').disabled = true;
+  document.getElementById('btnAuto').textContent = '⚙ Auto-Play';
+  document.getElementById('logWrap').innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>Logs will appear here</div>';
+  // Clear canvas on reset
+  const canvas = document.getElementById('chartCanvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw placeholder text
+    canvas.width = canvas.getBoundingClientRect().width || 500;
+    canvas.height = 220;
+    ctx.fillStyle = 'rgba(90,112,128,0.5)';
+    ctx.font = '14px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('📊  Run simulation to see chart', canvas.width / 2, 110);
+  }
+}
+
+function randomSeq() {
+  const len = 15 + Math.floor(Math.random() * 10);
+  const maxPage = 6 + Math.floor(Math.random() * 3);
+  const seq = Array.from({ length: len }, () => Math.floor(Math.random() * maxPage));
+  document.getElementById('refString').value = seq.join(' ');
+  notify(`Generated ${len} random pages (0–${maxPage - 1})`, 'info');
+}
+
+// =========================================================
+// EVENT BINDINGS
+// =========================================================
+document.getElementById('btnRun').addEventListener('click', runAll);
+document.getElementById('btnStep').addEventListener('click', doStep);
+document.getElementById('btnAuto').addEventListener('click', startAuto);
+document.getElementById('btnReset').addEventListener('click', reset);
+document.getElementById('btnRandom').addEventListener('click', randomSeq);
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedVal').textContent = this.value + 'ms';
+  if (autoRunning) { stopAuto(); startAuto(); }
+});
+
+document.querySelectorAll('.algo-toggle').forEach(el => {
+  el.addEventListener('click', () => {
+    const algo = el.dataset.algo;
+    if (activeAlgos.has(algo) && activeAlgos.size > 1) {
+      activeAlgos.delete(algo);
+      el.classList.remove('active');
+    } else if (!activeAlgos.has(algo)) {
+      activeAlgos.add(algo);
+      el.classList.add('active');
+    }
+  });
+});
+
+// Init frames on load
+window.addEventListener('DOMContentLoaded', () => {
+  ALGOS.forEach(algo => {
+    const area = document.getElementById(`frames-${algo}`);
+    for (let i = 0; i < 3; i++) {
+      area.innerHTML += `<div class="frame-slot"><span class="frame-label">${i}</span><div class="frame-cell empty">—</div></div>`;
+    }
+  });
+});
+</script>
+</body>
+</html>
